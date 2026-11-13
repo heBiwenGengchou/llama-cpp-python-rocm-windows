@@ -1,0 +1,43 @@
+From b908a86957d21833fd16d351586639534b928495 Mon Sep 17 00:00:00 2001
+From: local build <build@local>
+Date: Fri, 13 Nov 2026 17:03:27 +0800
+Subject: [PATCH 3/3] jinja: use the non-const std::function::target() overload
+
+MSVC's STL implements the const overload as reinterpret_cast<const _Fx*>(...), and since _Fx is a function type the const is dropped, so the cast casts away qualifiers: hard error under clang, accepted by MSVC.
+---
+ common/jinja/value.h | 12 +++++++++---
+ 1 file changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/common/jinja/value.h b/common/jinja/value.h
+index 8fdff88..e439b71 100644
+--- a/common/jinja/value.h
++++ b/common/jinja/value.h
+@@ -727,7 +727,13 @@ struct value_func_t : public value_t {
+     virtual hasher unique_hash() const noexcept override {
+         // Note: this is unused for now, we don't support function as object keys
+         // use function pointer as unique identifier
+-        const auto target = val_func.target<func_hptr>();
++        // NOTE (local patch): use the non-const std::function::target() overload.
++        // MSVC's STL implements the const overload as
++        //   reinterpret_cast<const _Fx*>(this->_Target(typeid(_Fx)))
++        // and since _Fx is a function type the const is dropped by the standard,
++        // so the cast ends up casting away qualifiers -> hard error under clang
++        // ("casts away qualifiers"), while MSVC's own compiler accepts it.
++        const auto target = const_cast<func_handler &>(val_func).target<func_hptr>();
+         return hasher(typeid(*this)).update(&target, sizeof(target));
+     }
+ protected:
+@@ -735,8 +741,8 @@ protected:
+         // Note: this is unused for now, we don't support function as object keys
+         // compare function pointers
+         // (val_func == other.val_func does not work as std::function::operator== is only used for nullptr check)
+-        const auto target_this  = this->val_func.target<func_hptr>();
+-        const auto target_other = other.val_func.target<func_hptr>();
++        const auto target_this  = const_cast<func_handler &>(this->val_func).target<func_hptr>();
++        const auto target_other = const_cast<func_handler &>(other.val_func).target<func_hptr>();
+         return typeid(*this) == typeid(other) && target_this == target_other;
+     }
+ };
+-- 
+2.39.2.windows.1
+
