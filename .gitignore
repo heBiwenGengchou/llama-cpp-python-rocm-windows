@@ -1,0 +1,9 @@
+# Build artefacts
+build_hip/
+buildenv/
+wheelroot/
+*.obj
+*.log
+
+# Wheels are attached to the GitHub Release, not committed here
+dist/*.whl
