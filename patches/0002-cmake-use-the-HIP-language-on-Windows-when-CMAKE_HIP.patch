@@ -1,0 +1,34 @@
+From 2cd1f94ad2efa460b24508a1bcf73c3589b4134d Mon Sep 17 00:00:00 2001
+From: local build <build@local>
+Date: Fri, 13 Nov 2026 17:02:24 +0800
+Subject: [PATCH 2/3] cmake: use the HIP language on Windows when
+ CMAKE_HIP_COMPILER is set
+
+The legacy branch forces hipcc to be the C++ compiler, so clang compiles the whole host tree and trips over MSVC's STL (std::function::target() does a reinterpret_cast that casts away qualifiers). CMake >= 3.21 ships Platform/Windows-Clang-HIP.cmake, so MSVC can build the host code while ROCm's clang builds the device code.
+---
+ ggml/src/ggml-hip/CMakeLists.txt | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/ggml/src/ggml-hip/CMakeLists.txt b/ggml/src/ggml-hip/CMakeLists.txt
+index 75d4d60..8820f58 100644
+--- a/ggml/src/ggml-hip/CMakeLists.txt
++++ b/ggml/src/ggml-hip/CMakeLists.txt
+@@ -15,8 +15,13 @@ if (NOT DEFINED CMAKE_HIP_FLAGS_DEBUG)
+     set(CMAKE_HIP_FLAGS_DEBUG "-g -Xarch_device -O2 -Xarch_host -O0")
+ endif()
+ 
+-# CMake on Windows doesn't support the HIP language yet
+-if (WIN32)
++# NOTE (local patch, Windows): CMake >= 3.21 ships Platform/Windows-Clang-HIP.cmake,
++# so the HIP language works on Windows.  The legacy branch below forces hipcc to be the
++# C++ compiler, which makes clang compile the whole host tree and breaks on MSVC's
++# STL (<functional>::target() reinterpret_cast that casts away qualifiers).
++# When CMAKE_HIP_COMPILER is given, use the modern HIP language path instead:
++# MSVC builds the host code, ROCm's clang builds the device code.
++if (WIN32 AND NOT CMAKE_HIP_COMPILER)
+     set(CXX_IS_HIPCC TRUE)
+ else()
+     string(REGEX MATCH "hipcc(\.bat)?$" CXX_IS_HIPCC "${CMAKE_CXX_COMPILER}")
+-- 
+2.39.2.windows.1
+
